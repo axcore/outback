@@ -69,7 +69,7 @@ local vertical_updatepos = function (pos)
 	end
 end
 
-local vertical_update = function (pos, node)
+local vertical_update = function (pos)
 	vertical_updatepos(pos) -- this one
 	vertical_updatepos(vector.add(pos, vertical_rules[1])) -- above
 	vertical_updatepos(vector.add(pos, vertical_rules[2])) -- below
@@ -88,7 +88,8 @@ mesecon.register_node("mesecons_extrawires:vertical", {
 	is_vertical_conductor = true,
 	drop = "mesecons_extrawires:vertical_off",
 	after_place_node = vertical_update,
-	after_dig_node = vertical_update
+	after_dig_node = vertical_update,
+	sounds = mesecon.node_sound.default,
 },{
 	tiles = {"mesecons_wire_off.png"},
 	groups = {dig_immediate=3},
@@ -121,7 +122,8 @@ mesecon.register_node("mesecons_extrawires:vertical_top", {
 	is_vertical_conductor = true,
 	drop = "mesecons_extrawires:vertical_off",
 	after_place_node = vertical_update,
-	after_dig_node = vertical_update
+	after_dig_node = vertical_update,
+	sounds = mesecon.node_sound.default,
 },{
 	tiles = {"mesecons_wire_off.png"},
 	mesecons = {conductor = {
@@ -152,7 +154,8 @@ mesecon.register_node("mesecons_extrawires:vertical_bottom", {
 	is_vertical_conductor = true,
 	drop = "mesecons_extrawires:vertical_off",
 	after_place_node = vertical_update,
-	after_dig_node = vertical_update
+	after_dig_node = vertical_update,
+	sounds = mesecon.node_sound.default,
 },{
 	tiles = {"mesecons_wire_off.png"},
 	mesecons = {conductor = {
@@ -172,9 +175,9 @@ mesecon.register_node("mesecons_extrawires:vertical_bottom", {
 minetest.register_craft({
 	output = "mesecons_extrawires:vertical_off 3",
 	recipe = {
-		{"mesecons:wire_00000000_off"},
-		{"mesecons:wire_00000000_off"},
-		{"mesecons:wire_00000000_off"}
+		{"group:mesecon_conductor_craftable"},
+		{"group:mesecon_conductor_craftable"},
+		{"group:mesecon_conductor_craftable"},
 	}
 })
 

@@ -97,7 +97,8 @@ end
 minetest.register_node("outback:small_red_rocks", {
 	description = "Small Red Rocks",
 	tiles = {"technic_granite.png"},
-	inventory_image = "ob_small_red_rocks.png",
+-- @@@ Josselin2
+--	inventory_image = "ob_small_red_rocks.png",
 	is_ground_content = true,
 	walkable = false,
 	paramtype = "light",
@@ -162,7 +163,8 @@ end
 minetest.register_node("outback:small_sandstone_rocks", {
 	description = "Small Sandstone Rocks",
 	tiles = {"default_sandstone.png"},
-	inventory_image = "ob_small_sandstone_rocks.png",
+-- @@@ Josselin2
+--	inventory_image = "ob_small_sandstone_rocks.png",
 	is_ground_content = true,
 	walkable = false,
 	paramtype = "light",
@@ -227,7 +229,8 @@ end
 minetest.register_node("outback:small_stone_rocks", {
 	description = "Small Stone Rocks",
 	tiles = {"default_stone.png"},
-	inventory_image = "ob_small_stone_rocks.png",
+-- @@@ Josselin2
+--	inventory_image = "ob_small_stone_rocks.png",
 	is_ground_content = true,
 	walkable = false,
 	paramtype = "light",

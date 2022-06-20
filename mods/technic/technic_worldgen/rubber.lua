@@ -81,3 +81,20 @@ minetest.register_abm({
 		minetest.spawn_tree(pos, technic.rubber_tree_model)
 	end
 })
+
+if technic.config:get_bool("enable_rubber_tree_generation") then
+	minetest.register_on_generated(function(minp, maxp, blockseed)
+		if math.random(1, 100) > 5 then
+			return
+		end
+		local tmp = {
+				x = (maxp.x - minp.x) / 2 + minp.x,
+				y = (maxp.y - minp.y) / 2 + minp.y,
+				z = (maxp.z - minp.z) / 2 + minp.z}
+		local pos = minetest.find_node_near(tmp, maxp.x - minp.x,
+				{"default:dirt_with_grass"})
+		if pos ~= nil then
+			minetest.spawn_tree({x=pos.x, y=pos.y+1, z=pos.z}, technic.rubber_tree_model)
+		end
+	end)
+end

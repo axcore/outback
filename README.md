@@ -1,10 +1,60 @@
-# Outback
+# Outback REDO
 
-A game for Minetest 0.5-dev. The game is under heavy development and is still missing many features.
+Original game created by vlapsley, updated for Minetest v5.5.1 by Josselin2.
 
-![Screenshot](https://raw.githubusercontent.com/vlapsley/outback/master/screenshot.png)
+![Screenshot](screenshot.png)
 
 [Discussion on Minetest Forums](https://forum.minetest.net/viewtopic.php?f=9&t=14412)
+
+As of 20 June 2022, the original version of this game will not load on Minetest v5.5.1, and crashes frequently. In addition, a number of annoying errors/warnings are visible in the chat window. I have updated the code to make the game playable again, fixing the crashes, removing visible errors/warnings and updating some mods with newer versions.
+
+All changes are preceded by '@@@ Josselin2':
+
+Updated mods to modern versions: *basic_materials* *mesecons* *pipeworks* *technic*
+
+*/biomes/..*
+
+Merged *mod.conf* and *depends.txt*, then deleted *depends.txt*
+
+*/biomes/central_australia.lua*
+
+Replaced non-existent "technic:granite_mineral_uranium" with "technic:mineral_uranium"
+
+*/biomes/pilbara.lua*
+
+Replaced non-existent "technic:granite_mineral_chromium" with "technic:mineral_chromium"
+
+*/outback/..*
+
+Merged *mod.conf* and *depends.txt*, then deleted *depends.txt*
+
+*/outback/nodes_base.lua*
+
+Fixed missing brackets in "outback:mineral_salt", which caused a "bad argument #5 to 'register_item_raw'" error
+
+Replaced the missing textures for aluminium by importing them from minetest_technic_aluminium, https://github.com/mrunderhill89/minetest_technic_aluminum (licence: LGPL, V2 or later)
+
+Replaced the missing textures for nickel by importing them from real_minerals, https://github.com/FaceDeer/real_minerals (licence: GPLv3)
+
+Replaced the missing textures for silver by importing them from moreores, https://github.com/minetest-mods/moreores (licence: CC BY-SA 3.0 Unported)
+
+*/outback/nodes_misc.lua*
+
+Commented out the missing inventory textures
+
+*/outback/nodes_trees.lua*
+
+Replaced the missing texture for mangrove saplings by importing one from australia, https://github.com/vlapsley/outback (licence: GNU LGPL v2.1)
+
+*/plantlife/flowers_plus/init.lua*
+
+Fixed attempts to grow non-existent "flowers:seaweed_1" (copied in replacement code from modern version of plantlife)
+
+README.md
+
+Replaced the URL to the screenshot
+
+The rest of this file comprises the original README text.
 
 ## Gameplay
 

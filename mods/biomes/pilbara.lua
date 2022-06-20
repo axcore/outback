@@ -66,7 +66,9 @@ minetest.register_ore({
 -- Chromium (Coobina)
 minetest.register_ore({
 	ore_type =       "scatter",
-	ore =            "technic:granite_mineral_chromium",
+-- @@@ Josselin2
+--	ore =            "technic:granite_mineral_chromium",
+	ore =            "technic:mineral_chromium",
 	wherein =        {"technic:granite"},
 	biomes =         {"pilbara"},
 	clust_scarcity = 3375,

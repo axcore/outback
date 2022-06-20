@@ -84,7 +84,9 @@ minetest.register_ore({
 -- Uranium (Olympic Dam)
 minetest.register_ore({
 	ore_type =        "scatter",
-	ore =             "technic:granite_mineral_uranium",
+-- @@@ Josselin2
+--	ore =             "technic:granite_mineral_uranium",
+	ore =             "technic:mineral_uranium",
 	wherein =         "technic:granite",
 	clust_scarcity =  8000,
 	clust_num_ores =  8,

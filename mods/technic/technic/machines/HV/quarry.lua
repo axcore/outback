@@ -7,7 +7,7 @@ local cable_entry = "^technic_cable_connection_overlay.png"
 minetest.register_craft({
 	recipe = {
 		{"technic:carbon_plate",       "pipeworks:filter",       "technic:composite_plate"},
-		{"technic:motor",              "technic:machine_casing", "technic:diamond_drill_head"},
+		{"basic_materials:motor",              "technic:machine_casing", "technic:diamond_drill_head"},
 		{"technic:carbon_steel_block", "technic:hv_cable",       "technic:carbon_steel_block"}},
 	output = "technic:quarry",
 })
@@ -47,19 +47,30 @@ local function set_quarry_demand(meta)
 	local radius = meta:get_int("size")
 	local diameter = radius*2 + 1
 	local machine_name = S("%s Quarry"):format("HV")
-	if meta:get_int("enabled") == 0 or meta:get_int("purge_on") == 1 then
-		meta:set_string("infotext", S(meta:get_int("purge_on") == 1 and "%s purging cache" or "%s Disabled"):format(machine_name))
+	local do_purge = meta:get_int("purge_on") == 1
+	if meta:get_int("enabled") == 0 or do_purge then
+		local infotext = do_purge and
+			S("%s purging cache") or S("%s Disabled")
+		meta:set_string("infotext", infotext:format(machine_name))
 		meta:set_int("HV_EU_demand", 0)
 	elseif meta:get_int("dug") == diameter*diameter * (quarry_dig_above_nodes+1+quarry_max_depth) then
 		meta:set_string("infotext", S("%s Finished"):format(machine_name))
 		meta:set_int("HV_EU_demand", 0)
 	else
-		meta:set_string("infotext", S(meta:get_int("HV_EU_input") >= quarry_demand and "%s Active" or "%s Unpowered"):format(machine_name))
+		local infotext = meta:get_int("HV_EU_input") >= quarry_demand
+			and S("%s Active") or S("%s Unpowered")
+		meta:set_string("infotext", infotext:format(machine_name))
 		meta:set_int("HV_EU_demand", quarry_demand)
 	end
 end
 
 local function quarry_receive_fields(pos, formname, fields, sender)
+	local player_name = sender:get_player_name()
+	if minetest.is_protected(pos, player_name) then
+		minetest.chat_send_player(player_name, "You are not allowed to edit this!")
+		minetest.record_protection_violation(pos, player_name)
+		return
+	end
 	local meta = minetest.get_meta(pos)
 	if fields.size and string.find(fields.size, "^[0-9]+$") then
 		local size = tonumber(fields.size)
@@ -112,6 +123,11 @@ local function quarry_run(pos, node)
 
 	if meta:get_int("enabled") and meta:get_int("HV_EU_input") >= quarry_demand and meta:get_int("purge_on") == 0 then
 		local pdir = minetest.facedir_to_dir(node.param2)
+		if pdir.y ~= 0 then
+			-- faces up or down, not valid, otherwise depth-check would run endless and hang up the server
+			return
+		end
+
 		local qdir = pdir.x == 1 and vector.new(0,0,-1) or
 			(pdir.z == -1 and vector.new(-1,0,0) or
 			(pdir.x == -1 and vector.new(0,0,1) or
@@ -124,7 +140,7 @@ local function quarry_run(pos, node)
 			vector.multiply(qdir, -radius))
 		local owner = meta:get_string("owner")
 		local nd = meta:get_int("dug")
-		while nd ~= diameter*diameter * (quarry_dig_above_nodes+1+quarry_max_depth) do
+		while nd < diameter*diameter * (quarry_dig_above_nodes+1+quarry_max_depth) do
 			local ry = math.floor(nd / (diameter*diameter))
 			local ndl = nd % (diameter*diameter)
 			if ry % 2 == 1 then
@@ -145,7 +161,11 @@ local function quarry_run(pos, node)
 			if can_dig then
 				dignode = technic.get_or_load_node(digpos) or minetest.get_node(digpos)
 				local dignodedef = minetest.registered_nodes[dignode.name] or {diggable=false}
-				if not dignodedef.diggable or (dignodedef.can_dig and not dignodedef.can_dig(digpos, nil)) then
+				-- doors mod among other thing does NOT like a nil digger...
+				local fakedigger = pipeworks.create_fake_player({
+					name = owner
+				})
+				if not dignodedef.diggable or (dignodedef.can_dig and not dignodedef.can_dig(digpos, fakedigger)) then
 					can_dig = false
 				end
 			end

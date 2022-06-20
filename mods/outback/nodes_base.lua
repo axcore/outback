@@ -212,7 +212,9 @@ minetest.register_node("outback:mineral_salt", {
 			{items = {"outback:salt"} }
 		}
 	},
-	sounds = default.node_sound_dirt_defaults,
+-- @@@ Josselin2
+--	sounds = default.node_sound_dirt_defaults,
+	sounds = default.node_sound_dirt_defaults(),
 })
 
 minetest.register_node("outback:salt_block", {

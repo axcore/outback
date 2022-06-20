@@ -10,13 +10,13 @@ minetest.register_node("mesecons_powerplant:power_plant", {
 	is_ground_content = false,
 	walkable = false,
 	groups = {dig_immediate=3, mesecon = 2},
-	light_source = default.LIGHT_MAX-9,
-    	description="Power Plant",
+	light_source = minetest.LIGHT_MAX-9,
+	description="Power Plant",
 	selection_box = {
 		type = "fixed",
 		fixed = {-0.3, -0.5, -0.3, 0.3, -0.5+0.7, 0.3},
 	},
-	sounds = default.node_sound_leaves_defaults(),
+	sounds = mesecon.node_sound.leaves,
 	mesecons = {receptor = {
 		state = mesecon.state.on
 	}},

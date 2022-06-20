@@ -1,8 +1,5 @@
+local S = minetest.get_translator("pipeworks")
 local assumed_eye_pos = vector.new(0, 1.5, 0)
-
-local function vector_copy(v)
-	return { x = v.x, y = v.y, z = v.z }
-end
 
 local function delay(x)
 	return (function() return x end)
@@ -10,7 +7,7 @@ end
 
 local function set_wielder_formspec(data, meta)
 	meta:set_string("formspec",
-			"invsize[8,"..(6+data.wield_inv_height)..";]"..
+			"size[8,"..(6+data.wield_inv_height)..";]"..
 			"item_image[0,0;1,1;"..data.name_base.."_off]"..
 			"label[1,0;"..minetest.formspec_escape(data.description).."]"..
 			"list[current_name;"..minetest.formspec_escape(data.wield_inv_name)..";"..((8-data.wield_inv_width)*0.5)..",1;"..data.wield_inv_width..","..data.wield_inv_height..";]"..
@@ -39,7 +36,7 @@ local can_tool_dig_node = function(nodename, toolcaps, toolname)
 		-- but a player holding one can - the game seems to fall back to the hand.
 		-- fall back to checking the hand's properties if the tool isn't the correct one.
 		local hand_caps = minetest.registered_items[""].tool_capabilities
-		diggable = minetest.get_dig_params(nodegroups, hand_caps)
+		diggable = minetest.get_dig_params(nodegroups, hand_caps).diggable
 	end
 	return diggable
 end
@@ -53,11 +50,10 @@ local function wielder_on(data, wielder_pos, wielder_node)
 	local wielder_meta = minetest.get_meta(wielder_pos)
 	local inv = wielder_meta:get_inventory()
 	local wield_inv_name = data.wield_inv_name
-	local wieldindex, wieldstack
+	local wieldindex
 	for i, stack in ipairs(inv:get_list(wield_inv_name)) do
 		if not stack:is_empty() then
 			wieldindex = i
-			wieldstack = stack
 			break
 		end
 	end
@@ -66,7 +62,6 @@ local function wielder_on(data, wielder_pos, wielder_node)
 		wield_inv_name = data.ghost_inv_name
 		inv:set_stack(wield_inv_name, 1, ItemStack(data.ghost_tool))
 		wieldindex = 1
-		wieldstack = inv:get_stack(wield_inv_name, 1)
 	end
 	local dir = minetest.facedir_to_dir(wielder_node.param2)
 	-- under/above is currently intentionally left switched
@@ -98,71 +93,20 @@ local function wielder_on(data, wielder_pos, wielder_node)
 		yaw = 0
 		pitch = math.pi/2
 	end
-	local virtplayer = {
-		get_inventory_formspec = delay(wielder_meta:get_string("formspec")),
-		get_look_dir = delay(vector.multiply(dir, -1)),
-		get_look_pitch = delay(pitch),
-		get_look_yaw = delay(yaw),
-		get_player_control = delay({ jump=false, right=false, left=false, LMB=false, RMB=false, sneak=data.sneak, aux1=false, down=false, up=false }),
-		get_player_control_bits = delay(data.sneak and 64 or 0),
-		get_player_name = delay(data.masquerade_as_owner and wielder_meta:get_string("owner") or ":pipeworks:"..minetest.pos_to_string(wielder_pos)),
-		is_player = delay(true),
-		is_fake_player = true,
-		set_inventory_formspec = delay(),
-		getpos = delay(vector.subtract(wielder_pos, assumed_eye_pos)),
-		get_hp = delay(20),
-		get_inventory = delay(inv),
-		get_wielded_item = delay(wieldstack),
-		get_wield_index = delay(wieldindex),
-		get_wield_list = delay(wield_inv_name),
-		moveto = delay(),
-		punch = delay(),
-		remove = delay(),
-		right_click = delay(),
-		setpos = delay(),
-		set_hp = delay(),
-		set_properties = delay(),
-		set_wielded_item = function(self, item)
-			wieldstack = item
-			inv:set_stack(wield_inv_name, wieldindex, item)
-		end,
-		set_animation = delay(),
-		set_attach = delay(),
-		set_detach = delay(),
-		set_bone_position = delay(),
-		hud_change = delay(),
-		get_breath = delay(11),
-		-- TODO "implement" all these
-		-- set_armor_groups
-		-- get_armor_groups
-		-- get_animation
-		-- get_attach
-		-- get_bone_position
-		-- get_properties
-		-- get_player_velocity
-		-- set_look_pitch
-		-- set_look_yaw
-		-- set_breath
-		-- set_physics_override
-		-- get_physics_override
-		-- hud_add
-		-- hud_remove
-		-- hud_get
-		-- hud_set_flags
-		-- hud_get_flags
-		-- hud_set_hotbar_itemcount
-		-- hud_get_hotbar_itemcount
-		-- hud_set_hotbar_image
-		-- hud_get_hotbar_image
-		-- hud_set_hotbar_selected_image
-		-- hud_get_hotbar_selected_image
-		-- hud_replace_builtin
-		-- set_sky
-		-- get_sky
-		-- override_day_night_ratio
-		-- get_day_night_ratio
-		-- set_local_animation
-	}
+	local virtplayer = pipeworks.create_fake_player({
+		name = data.masquerade_as_owner and wielder_meta:get_string("owner")
+			or ":pipeworks:" .. minetest.pos_to_string(wielder_pos),
+		formspec = wielder_meta:get_string("formspec"),
+		look_dir = vector.multiply(dir, -1),
+		look_pitch = pitch,
+		look_yaw = yaw,
+		sneak = data.sneak,
+		position = vector.subtract(wielder_pos, assumed_eye_pos),
+		inventory = inv,
+		wield_index = wieldindex,
+		wield_list = wield_inv_name
+	})
+
 	local pointed_thing = { type="node", under=under_pos, above=above_pos }
 	data.act(virtplayer, pointed_thing)
 	if data.eject_drops then
@@ -256,7 +200,7 @@ local function register_wielder(data)
 			end,
 			after_place_node = function (pos, placer)
 				pipeworks.scan_for_tube_objects(pos)
-				local placer_pos = placer:getpos()
+				local placer_pos = placer:get_pos()
 				if placer_pos and placer:is_player() then placer_pos = vector.add(placer_pos, assumed_eye_pos) end
 				if placer_pos then
 					local dir = vector.subtract(pos, placer_pos)
@@ -287,6 +231,7 @@ local function register_wielder(data)
 				end
 				pipeworks.scan_for_tube_objects(pos)
 			end,
+			on_rotate = pipeworks.on_rotate,
 			on_punch = data.fixup_node,
 			allow_metadata_inventory_put = function(pos, listname, index, stack, player)
 				if not pipeworks.may_configure(pos, player) then return 0 end
@@ -311,7 +256,7 @@ if pipeworks.enable_node_breaker then
 	local wield_inv_name = "pick"
 	data = {
 		name_base = name_base,
-		description = "Node Breaker",
+		description = S("Node Breaker"),
 		texture_base = "pipeworks_nodebreaker",
 		texture_stateful = { top = true, bottom = true, side2 = true, side1 = true, front = true },
 		tube_connect_sides = { top=1, bottom=1, left=1, right=1, back=1 },
@@ -384,14 +329,27 @@ if pipeworks.enable_node_breaker then
 				virtplayer:set_wielded_item(wieldstack)
 			else
 				local under_node = minetest.get_node(pointed_thing.under)
-				local on_dig = (minetest.registered_nodes[under_node.name] or {on_dig=minetest.node_dig}).on_dig
-				-- check that the current tool is capable of destroying the target node.
+				local def = minetest.registered_nodes[under_node.name]
+				if not def then
+					-- do not dig an unknown node
+					return
+				end
+				-- check that the current tool is capable of destroying the
+				-- target node.
 				-- if we can't, don't dig, and leave the wield stack unchanged.
-				-- note that wieldstack:get_tool_capabilities() returns hand properties if the item has none of it's own.
-				if can_tool_dig_node(under_node.name, wieldstack:get_tool_capabilities(), wieldstack:get_name()) then
-					on_dig(pointed_thing.under, under_node, virtplayer)
+				-- note that wieldstack:get_tool_capabilities() returns hand
+				-- properties if the item has none of it's own.
+				if can_tool_dig_node(under_node.name,
+						wieldstack:get_tool_capabilities(),
+						wieldstack:get_name()) then
+					def.on_dig(pointed_thing.under, under_node, virtplayer)
+					local sound = def.sounds and def.sounds.dug
+					if sound then
+						minetest.sound_play(sound.name,
+							{pos=pointed_thing.under, gain=sound.gain})
+					end
 					wieldstack = virtplayer:get_wielded_item()
-				else
+				--~ else
 					--pipeworks.logger(dname.."couldn't dig node!")
 				end
 			end
@@ -413,10 +371,11 @@ if pipeworks.enable_node_breaker then
 		eject_drops = true,
 	}
 	register_wielder(data)
+	pipeworks.ui_cat_tube_list[#pipeworks.ui_cat_tube_list+1] = "pipeworks:nodebreaker_off"
 	minetest.register_craft({
 		output = "pipeworks:nodebreaker_off",
 		recipe = {
-			{ "pipeworks:gear", "pipeworks:gear",   "pipeworks:gear"    },
+			{ "basic_materials:gear_steel", "basic_materials:gear_steel",   "basic_materials:gear_steel"    },
 			{ "default:stone", "mesecons:piston",   "default:stone" },
 			{ "group:wood",    "mesecons:mesecon",  "group:wood" },
 		}
@@ -447,7 +406,7 @@ end
 if pipeworks.enable_deployer then
 	register_wielder({
 		name_base = "pipeworks:deployer",
-		description = "Deployer",
+		description = S("Deployer"),
 		texture_base = "pipeworks_deployer",
 		texture_stateful = { front = true },
 		tube_connect_sides = { back=1 },
@@ -464,6 +423,7 @@ if pipeworks.enable_deployer then
 		end,
 		eject_drops = false,
 	})
+	pipeworks.ui_cat_tube_list[#pipeworks.ui_cat_tube_list+1] = "pipeworks:deployer_off"
 	minetest.register_craft({
 		output = "pipeworks:deployer_off",
 		recipe = {
@@ -480,7 +440,7 @@ end
 if pipeworks.enable_dispenser then
 	register_wielder({
 		name_base = "pipeworks:dispenser",
-		description = "Dispenser",
+		description = S("Dispenser"),
 		texture_base = "pipeworks_dispenser",
 		texture_stateful = { front = true },
 		tube_connect_sides = { back=1 },
@@ -493,10 +453,13 @@ if pipeworks.enable_dispenser then
 		sneak = true,
 		act = function(virtplayer, pointed_thing)
 			local wieldstack = virtplayer:get_wielded_item()
-			virtplayer:set_wielded_item((minetest.registered_items[wieldstack:get_name()] or {on_drop=minetest.item_drop}).on_drop(wieldstack, virtplayer, virtplayer:getpos()) or wieldstack)
+			virtplayer:set_wielded_item((minetest.registered_items[wieldstack:get_name()] or
+				{on_drop=minetest.item_drop}).on_drop(wieldstack, virtplayer, virtplayer:get_pos()) or
+				wieldstack)
 		end,
 		eject_drops = false,
 	})
+	pipeworks.ui_cat_tube_list[#pipeworks.ui_cat_tube_list+1] = "pipeworks:dispenser_off"
 	minetest.register_craft({
 		output = "pipeworks:dispenser_off",
 		recipe = {

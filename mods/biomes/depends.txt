@@ -1,5 +1,0 @@
-default
-outback
-mapgen
-technic?
-flowers?

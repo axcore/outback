@@ -13,7 +13,7 @@ function pipeworks.tube_inject_item(pos, start_pos, velocity, item, owner)
 	local obj = luaentity.add_entity(pos, "pipeworks:tubed_item")
 	obj:set_item(stack:to_string())
 	obj.start_pos = vector.new(start_pos)
-	obj:setvelocity(velocity)
+	obj:set_velocity(velocity)
 	obj.owner = owner
 	--obj:set_color("red") -- todo: this is test-only code
 	return obj
@@ -25,7 +25,7 @@ end
 -- both optional w/ sensible defaults and fallback to normal allow_* function
 -- XXX: possibly change insert_object to insert_item
 
-local adjlist={{x=0,y=0,z=1},{x=0,y=0,z=-1},{x=0,y=1,z=0},{x=0,y=-1,z=0},{x=1,y=0,z=0},{x=-1,y=0,z=0}}
+local default_adjlist={{x=0,y=0,z=1},{x=0,y=0,z=-1},{x=0,y=1,z=0},{x=0,y=-1,z=0},{x=1,y=0,z=0},{x=-1,y=0,z=0}}
 
 function pipeworks.notvel(tbl, vel)
 	local tbl2={}
@@ -42,7 +42,7 @@ minetest.register_globalstep(function(dtime)
 		return
 	end
 	tube_item_count = {}
-	for id, entity in pairs(luaentity.entities) do
+	for _, entity in pairs(luaentity.entities) do
 		if entity.name == "pipeworks:tubed_item" then
 			local h = minetest.hash_node_position(vector.round(entity._pos))
 			tube_item_count[h] = (tube_item_count[h] or 0) + 1
@@ -55,15 +55,22 @@ end)
 -- tube overload mechanism:
 -- when the tube's item count (tracked in the above tube_item_count table)
 -- exceeds the limit configured per tube, replace it with a broken one.
+
+function pipeworks.break_tube(pos)
+	local node = minetest.get_node(pos)
+	local meta = minetest.get_meta(pos)
+	meta:set_string("the_tube_was", minetest.serialize(node))
+	minetest.swap_node(pos, {name = "pipeworks:broken_tube_1"})
+	pipeworks.scan_for_tube_objects(pos)
+end
+
 local crunch_tube = function(pos, cnode, cmeta)
 	if enable_max_limit then
 		local h = minetest.hash_node_position(pos)
 		local itemcount = tube_item_count[h] or 0
 		if itemcount > max_tube_limit then
-			cmeta:set_string("the_tube_was", minetest.serialize(cnode))
-			print("[Pipeworks] Warning - a tube at "..minetest.pos_to_string(pos).." broke due to too many items ("..itemcount..")")
-			minetest.swap_node(pos, {name = "pipeworks:broken_tube_1"})
-			pipeworks.scan_for_tube_objects(pos)
+			pipeworks.logger("Warning - a tube at "..minetest.pos_to_string(pos).." broke due to too many items ("..itemcount..")")
+			pipeworks.break_tube(pos)
 		end
 	end
 end
@@ -80,6 +87,9 @@ local function go_next_compat(pos, cnode, cmeta, cycledir, vel, stack, owner)
 	if minetest.registered_nodes[cnode.name] and minetest.registered_nodes[cnode.name].tube and minetest.registered_nodes[cnode.name].tube.can_go then
 		can_go = minetest.registered_nodes[cnode.name].tube.can_go(pos, cnode, vel, stack)
 	else
+		local adjlist_string = minetest.get_meta(pos):get_string("adjlist")
+		local adjlist = minetest.deserialize(adjlist_string) or default_adjlist -- backward compat: if not found, use old behavior: all directions
+
 		can_go = pipeworks.notvel(adjlist, vel)
 	end
 	-- can_go() is expected to return an array-like table of candidate offsets.
@@ -191,6 +201,7 @@ minetest.register_entity("pipeworks:tubed_item", {
 
 	from_data = function(self, itemstring)
 		local stack = ItemStack(itemstring)
+		--[[
 		local itemtable = stack:to_table()
 		local itemname = nil
 		if itemtable then
@@ -202,12 +213,13 @@ minetest.register_entity("pipeworks:tubed_item", {
 			item_texture = minetest.registered_items[itemname].inventory_image
 			item_type = minetest.registered_items[itemname].type
 		end
+		--]]
 		self.object:set_properties({
 			is_visible = true,
 			textures = {stack:get_name()}
 		})
 		local def = stack:get_definition()
-		self.object:setyaw((def and def.type == "node") and 0 or math.pi * 0.25)
+		self.object:set_yaw((def and def.type == "node") and 0 or math.pi * 0.25)
 	end,
 
 	get_staticdata = luaentity.get_staticdata,
@@ -220,7 +232,7 @@ minetest.register_entity("pipeworks:tubed_item", {
 			return
 		end
 		local item = minetest.deserialize(staticdata)
-		pipeworks.tube_inject_item(self.object:getpos(), item.start_pos, item.velocity, item.itemstring)
+		pipeworks.tube_inject_item(self.object:get_pos(), item.start_pos, item.velocity, item.itemstring)
 		self.object:remove()
 	end,
 })
@@ -293,15 +305,15 @@ luaentity.register_entity("pipeworks:tubed_item", {
 	end,
 
 	on_step = function(self, dtime)
-		local pos = self:getpos()
+		local pos = self:get_pos()
 		if self.start_pos == nil then
 			self.start_pos = vector.round(pos)
-			self:setpos(pos)
+			self:set_pos(pos)
 		end
 
 		local stack = ItemStack(self.itemstring)
 
-		local velocity = self:getvelocity()
+		local velocity = self:get_velocity()
 
 		local moved = false
 		local speed = math.abs(velocity.x + velocity.y + velocity.z)
@@ -331,8 +343,8 @@ luaentity.register_entity("pipeworks:tubed_item", {
 				return
 			end
 			velocity = vector.multiply(velocity, -1)
-			self:setpos(vector.subtract(self.start_pos, vector.multiply(vel, moved_by - 1)))
-			self:setvelocity(velocity)
+			self:set_pos(vector.subtract(self.start_pos, vector.multiply(vel, moved_by - 1)))
+			self:set_velocity(velocity)
 			self:set_item(leftover:to_string())
 			return
 		end
@@ -350,13 +362,15 @@ luaentity.register_entity("pipeworks:tubed_item", {
 					-- compatible with Minetest 0.4.13.
 					-- Using item_drop here makes Minetest 0.4.13 crash.
 					local dropped_item = minetest.add_item(self.start_pos, stack)
-					dropped_item:setvelocity(vector.multiply(velocity, 5))
-					self:remove()
+					if dropped_item then
+						dropped_item:set_velocity(vector.multiply(velocity, 5))
+						self:remove()
+					end
 					return
 				else
 					velocity = vector.multiply(velocity, -1)
-					self:setpos(vector.subtract(self.start_pos, vector.multiply(vel, moved_by - 1)))
-					self:setvelocity(velocity)
+					self:set_pos(vector.subtract(self.start_pos, vector.multiply(vel, moved_by - 1)))
+					self:set_velocity(velocity)
 				end
 			elseif is_multimode(multimode) then
 				-- create new stacks according to returned data.
@@ -371,8 +385,8 @@ luaentity.register_entity("pipeworks:tubed_item", {
 
 			if new_velocity and not vector.equals(velocity, new_velocity) then
 				local nvelr = math.abs(new_velocity.x + new_velocity.y + new_velocity.z)
-				self:setpos(vector.add(self.start_pos, vector.multiply(new_velocity, (moved_by - 1) / nvelr)))
-				self:setvelocity(new_velocity)
+				self:set_pos(vector.add(self.start_pos, vector.multiply(new_velocity, (moved_by - 1) / nvelr)))
+				self:set_velocity(new_velocity)
 			end
 		end
 	end
@@ -386,13 +400,13 @@ if minetest.get_modpath("mesecons_mvps") then
 		for _, n in ipairs(moved_nodes) do
 			moved[minetest.hash_node_position(n.oldpos)] = vector.subtract(n.pos, n.oldpos)
 		end
-		for id, entity in pairs(luaentity.entities) do
+		for _, entity in pairs(luaentity.entities) do
 			if entity.name == "pipeworks:tubed_item" then
-				local pos = entity:getpos()
+				local pos = entity:get_pos()
 				local rpos = vector.round(pos)
 				local dir = moved[minetest.hash_node_position(rpos)]
 				if dir then
-					entity:setpos(vector.add(pos, dir))
+					entity:set_pos(vector.add(pos, dir))
 					entity.start_pos = vector.add(entity.start_pos, dir)
 				end
 			end

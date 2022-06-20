@@ -5,6 +5,7 @@ technic.worldgen = {
 	gettext = rawget(_G, "intllib") and intllib.Getter() or function(s) return s end,
 }
 
+dofile(modpath.."/config.lua")
 dofile(modpath.."/nodes.lua")
 dofile(modpath.."/oregen.lua")
 dofile(modpath.."/crafts.lua")
@@ -17,3 +18,9 @@ else
 	minetest.register_alias("technic:rubber_sapling", "moretrees:rubber_tree_sapling")
 	minetest.register_alias("technic:rubber_tree_empty", "moretrees:rubber_tree_trunk_empty")
 end
+
+-- mg suppport
+if minetest.get_modpath("mg") then
+	dofile(modpath.."/mg.lua")
+end
+

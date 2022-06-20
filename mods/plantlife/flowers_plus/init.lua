@@ -111,9 +111,21 @@ local box = {
 
 -- ongen registrations
 
+-- @@@ Josselin2
+--[[
 flowers_plus.grow_seaweed = function(pos)
 	local right_here = {x=pos.x, y=pos.y+1, z=pos.z}
 	minetest.set_node(right_here, {name="flowers:seaweed_"..math.random(1,4), param2=math.random(1,3)})
+end
+]]--
+flowers_plus.grow_seaweed = function(pos)
+	local right_here = {x=pos.x, y=pos.y+1, z=pos.z}
+	local seaweed = math.random(1,4)
+	local node_name = "flowers:seaweed"
+	if seaweed > 1 then
+		node_name = node_name .. "_" .. seaweed
+	end
+	minetest.swap_node(right_here, {name=node_name, param2=math.random(1,3)})
 end
 
 biome_lib:register_generate_plant({

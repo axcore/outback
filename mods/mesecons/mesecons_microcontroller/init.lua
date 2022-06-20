@@ -44,8 +44,9 @@ local mesecons = {effector =
 {
 	rules = input_rules,
 	action_change = function (pos, node, rulename, newstate)
-		yc.update_real_portstates(pos, node, rulename, newstate)
-		yc.update(pos)
+		if yc.update_real_portstates(pos, node, rulename, newstate) then
+			yc.update(pos)
+		end
 	end
 }}
 if nodename ~= "mesecons_microcontroller:microcontroller0000" then
@@ -102,7 +103,13 @@ minetest.register_node(nodename, {
 		for i=1, EEPROM_SIZE+1 do r=r.."0" end --Generate a string with EEPROM_SIZE*"0"
 		meta:set_string("eeprom", r)
 	end,
-	on_receive_fields = function(pos, formanme, fields, sender)
+	on_receive_fields = function(pos, _, fields, sender)
+		local player_name = sender:get_player_name()
+		if minetest.is_protected(pos, player_name) and
+				not minetest.check_player_privs(player_name, {protection_bypass=true}) then
+			minetest.record_protection_violation(pos, player_name)
+			return
+		end
 		local meta = minetest.get_meta(pos)
 		if fields.band then
 			fields.code = "sbi(C, A&B) :A and B are inputs, C is output"
@@ -133,7 +140,7 @@ minetest.register_node(nodename, {
 		yc.reset (pos)
 		yc.update(pos)
 	end,
-	sounds = default.node_sound_stone_defaults(),
+	sounds = mesecon.node_sound.stone,
 	mesecons = mesecons,
 	after_dig_node = function (pos, node)
 		rules = microc_rules[node.name]
@@ -219,7 +226,6 @@ yc.parsecode = function(code, pos)
 	local Lreal = yc.get_real_portstates(pos)
 	local Lvirtual = yc.get_virtual_portstates(pos)
 	if Lvirtual == nil then return nil end
-	local c
 	local eeprom = meta:get_string("eeprom")
 	while true do
 		local command, params
@@ -245,9 +251,9 @@ yc.parsecode = function(code, pos)
 			if not params then return nil end
 		end
 		if command == "on" then
-			L = yc.command_on (params, Lvirtual)
+			Lvirtual = yc.command_on (params, Lvirtual)
 		elseif command == "off" then
-			L = yc.command_off(params, Lvirtual)
+			Lvirtual = yc.command_off(params, Lvirtual)
 		elseif command == "print" then
 			local su = yc.command_print(params, eeprom, yc.merge_portstates(Lreal, Lvirtual))
 			if su ~= true then return nil end
@@ -272,7 +278,7 @@ yc.parsecode = function(code, pos)
 end
 
 yc.parse_get_command = function(code, starti)
-	i = starti
+	local i = starti
 	local s
 	while s ~= "" do
 		s = string.sub(code, i, i)
@@ -298,7 +304,7 @@ yc.parse_get_command = function(code, starti)
 end
 
 yc.parse_get_params = function(code, starti)
-	i = starti
+	local i = starti
 	local s
 	local params = {}
 	local is_string = false
@@ -321,7 +327,7 @@ yc.parse_get_params = function(code, starti)
 end
 
 yc.parse_get_eeprom_param = function(cond, starti)
-	i = starti
+	local i = starti
 	local s
 	local addr
 	while s ~= "" do
@@ -378,7 +384,6 @@ end
 
 --Commands
 yc.command_on = function(params, L)
-	local rules = {}
 	for i, port in ipairs(params) do
 		L = yc.set_portstate (port, true, L)
 	end
@@ -386,7 +391,6 @@ yc.command_on = function(params, L)
 end
 
 yc.command_off = function(params, L)
-	local rules = {}
 	for i, port in ipairs(params) do
 		L = yc.set_portstate (port, false, L)
 	end
@@ -399,7 +403,7 @@ yc.command_print = function(params, eeprom, L)
 		if param:sub(1,1) == '"' and param:sub(#param, #param) == '"' then
 			s = s..param:sub(2, #param-1)
 		else
-			r = yc.command_parsecondition(param, L, eeprom)
+			local r = yc.command_parsecondition(param, L, eeprom)
 			if r == "1" or r == "0" then
 				s = s..r
 			else return nil end
@@ -463,8 +467,8 @@ yc.command_after_execute = function(params)
 		if yc.parsecode(params.code, params.pos) == nil then
 			meta:set_string("infotext", "Code in after() not valid!")
 		else
-			if code ~= nil then
-				meta:set_string("infotext", "Working Microcontroller\n"..code)
+			if params.code ~= nil then
+				meta:set_string("infotext", "Working Microcontroller\n"..params.code)
 			else
 				meta:set_string("infotext", "Working Microcontroller")
 			end
@@ -488,7 +492,7 @@ end
 
 --Condition parsing
 yc.command_if_getcondition = function(code, starti)
-	i = starti
+	local i = starti
 	local s
 	local brackets = 1 --1 Bracket to close
 	while s ~= "" do
@@ -537,8 +541,8 @@ yc.command_parsecondition = function(cond, L, eeprom)
 	cond = string.gsub(cond, "!0", "1")
 	cond = string.gsub(cond, "!1", "0")
 
-	local i = 2
-	local l = string.len(cond)
+	i = 2
+	l = string.len(cond)
 	while i<=l do
 		local s = cond:sub(i,i)
 		local b = tonumber(cond:sub(i-1, i-1))
@@ -547,8 +551,7 @@ yc.command_parsecondition = function(cond, L, eeprom)
 		if s == "=" then
 			if a==nil then return nil end
 			if b==nil then return nil end
-			if a == b  then buf = "1" end
-			if a ~= b then buf = "0" end
+			local buf = a == b and "1" or "0"
 			cond = string.gsub(cond, b..s..a, buf)
 			i = 1
 			l = string.len(cond)
@@ -556,8 +559,8 @@ yc.command_parsecondition = function(cond, L, eeprom)
 		i = i + 1
 	end
 
-	local i = 2
-	local l = string.len(cond)
+	i = 2
+	l = string.len(cond)
 	while i<=l do
 		local s = cond:sub(i,i)
 		local b = tonumber(cond:sub(i-1, i-1))
@@ -565,6 +568,7 @@ yc.command_parsecondition = function(cond, L, eeprom)
 		if cond:sub(i+1, i+1) == nil then break end
 		if s == "&" then
 			if a==nil then return nil end
+			if b==nil then return nil end
 			local buf = ((a==1) and (b==1))
 			if buf == true  then buf = "1" end
 			if buf == false then buf = "0" end
@@ -574,6 +578,7 @@ yc.command_parsecondition = function(cond, L, eeprom)
 		end
 		if s == "|" then
 			if a==nil then return nil end
+			if b==nil then return nil end
 			local buf = ((a == 1) or (b == 1))
 			if buf == true  then buf = "1" end
 			if buf == false then buf = "0" end
@@ -583,6 +588,7 @@ yc.command_parsecondition = function(cond, L, eeprom)
 		end
 		if s == "~" then
 			if a==nil then return nil end
+			if b==nil then return nil end
 			local buf = (((a == 1) or (b == 1)) and not((a==1) and (b==1)))
 			if buf == true  then buf = "1" end
 			if buf == false then buf = "0" end
@@ -650,13 +656,16 @@ yc.set_portstate = function(port, state, L)
 	return L
 end
 
-yc.update_real_portstates = function(pos, node, rulename, newstate)
+-- Updates the real port states according to the signal change.
+-- Returns whether the real port states actually changed.
+yc.update_real_portstates = function(pos, _, rulename, newstate)
 	local meta = minetest.get_meta(pos)
 	if rulename == nil then
 		meta:set_int("real_portstates", 1)
-		return
+		return true
 	end
-	local n = meta:get_int("real_portstates") - 1
+	local real_portstates = meta:get_int("real_portstates")
+	local n = real_portstates - 1
 	local L = {}
 	for i = 1, 4 do
 		L[i] = n%2
@@ -671,7 +680,12 @@ yc.update_real_portstates = function(pos, node, rulename, newstate)
 		local port = ({4, 1, nil, 3, 2})[rulename.x+2*rulename.z+3]
 		L[port] = (newstate == "on") and 1 or 0
 	end
-	meta:set_int("real_portstates", 1 + L[1] + 2*L[2] + 4*L[3] + 8*L[4])
+	local new_portstates = 1 + L[1] + 2*L[2] + 4*L[3] + 8*L[4]
+	if new_portstates ~= real_portstates then
+		meta:set_int("real_portstates", new_portstates)
+		return true
+	end
+	return false
 end
 
 yc.get_real_portstates = function(pos) -- determine if ports are powered (by itself or from outside)
@@ -687,7 +701,7 @@ end
 
 yc.get_virtual_portstates = function(pos) -- portstates according to the name
 	local name = minetest.get_node(pos).name
-	local b, a = string.find(name, ":microcontroller")
+	local _, a = string.find(name, ":microcontroller")
 	if a == nil then return nil end
 	a = a + 1
 

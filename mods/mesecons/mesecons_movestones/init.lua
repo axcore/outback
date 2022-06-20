@@ -43,10 +43,16 @@ function mesecon.register_movestone(name, def, is_sticky, is_vertical)
 	local function movestone_move(pos, node, rulename)
 		local direction = get_movestone_direction(rulename, is_vertical)
 		local frontpos = vector.add(pos, direction)
+		local meta = minetest.get_meta(pos)
+		local owner = meta:get_string("owner")
 
 		-- ### Step 1: Push nodes in front ###
-		local success, stack, oldstack = mesecon.mvps_push(frontpos, direction, max_push)
+		local success, stack, oldstack = mesecon.mvps_push(frontpos, direction, max_push, owner)
 		if not success then
+			if stack == "protected" then
+				meta:set_string("infotext", "Can't move: protected area on the way")
+				return
+			end
 			minetest.get_node_timer(pos):start(timer_interval)
 			return
 		end
@@ -54,20 +60,25 @@ function mesecon.register_movestone(name, def, is_sticky, is_vertical)
 
 		-- ### Step 2: Move the movestone ###
 		minetest.set_node(frontpos, node)
+		local meta2 = minetest.get_meta(frontpos)
+		meta2:set_string("owner", owner)
 		minetest.remove_node(pos)
 		mesecon.on_dignode(pos, node)
 		mesecon.on_placenode(frontpos, node)
 		minetest.get_node_timer(frontpos):start(timer_interval)
+		minetest.sound_play("movestone", { pos = pos, max_hear_distance = 20, gain = 0.5 }, true)
 
 		-- ### Step 3: If sticky, pull stack behind ###
-		if not is_sticky then
-			return
+		if is_sticky then
+			local backpos = vector.subtract(pos, direction)
+			local success, _, oldstack = mesecon.mvps_pull_all(backpos, direction, max_pull, owner)
+			if success then
+				mesecon.mvps_move_objects(backpos, vector.multiply(direction, -1), oldstack, -1)
+			end
 		end
-		local backpos = vector.subtract(pos, direction)
-		success, stack, oldstack = mesecon.mvps_pull_all(backpos, direction, max_pull)
-		if success then
-			mesecon.mvps_move_objects(backpos, vector.multiply(direction, -1), oldstack, -1)
-		end
+
+		-- ### Step 4: Let things fall ###
+		minetest.check_for_falling(vector.add(pos, {x=0, y=1, z=0}))
 	end
 
 	def.is_ground_content = false
@@ -81,7 +92,17 @@ function mesecon.register_movestone(name, def, is_sticky, is_vertical)
 		rules = mesecon.rules.default,
 	}}
 
-	def.on_timer = function(pos, elapsed)
+	def.after_place_node = mesecon.mvps_set_owner
+
+	def.on_punch = function(pos, _, player)
+		local player_name = player and player.get_player_name and player:get_player_name()
+		if mesecon.mvps_claim(pos, player_name) then
+			minetest.get_node_timer(pos):start(timer_interval)
+			minetest.chat_send_player(player_name, "Reclaimed movestone")
+		end
+	end
+
+	def.on_timer = function(pos)
 		local sourcepos = mesecon.is_powered(pos)
 		if not sourcepos then
 			return
@@ -108,7 +129,7 @@ mesecon.register_movestone("mesecons_movestones:movestone", {
 	},
 	groups = {cracky = 3},
     description = "Movestone",
-	sounds = default.node_sound_stone_defaults()
+	sounds = mesecon.node_sound.stone
 }, false, false)
 
 mesecon.register_movestone("mesecons_movestones:sticky_movestone", {
@@ -122,7 +143,7 @@ mesecon.register_movestone("mesecons_movestones:sticky_movestone", {
 	},
 	groups = {cracky = 3},
     description = "Sticky Movestone",
-	sounds = default.node_sound_stone_defaults(),
+	sounds = mesecon.node_sound.stone,
 }, true, false)
 
 mesecon.register_movestone("mesecons_movestones:movestone_vertical", {
@@ -136,21 +157,21 @@ mesecon.register_movestone("mesecons_movestones:movestone_vertical", {
 	},
 	groups = {cracky = 3},
     description = "Vertical Movestone",
-	sounds = default.node_sound_stone_defaults()
+	sounds = mesecon.node_sound.stone
 }, false, true)
 
 mesecon.register_movestone("mesecons_movestones:sticky_movestone_vertical", {
 	tiles = {
-		"jeija_movestone_side.png",
-		"jeija_movestone_side.png",
-		"jeija_sticky_movestone.png^[transformFXR90",
-		"jeija_sticky_movestone.png^[transformR90",
-		"jeija_sticky_movestone.png^[transformFXR90",
-		"jeija_sticky_movestone.png^[transformR90",
+		"jeija_movestone_side.png^(mesecons_glue.png^[opacity:127)",
+		"jeija_movestone_side.png^(mesecons_glue.png^[opacity:127)",
+		"jeija_movestone_arrows.png^[transformFXR90",
+		"jeija_movestone_arrows.png^[transformR90",
+		"jeija_movestone_arrows.png^[transformFXR90",
+		"jeija_movestone_arrows.png^[transformR90",
 	},
 	groups = {cracky = 3},
     description = "Vertical Sticky Movestone",
-	sounds = default.node_sound_stone_defaults(),
+	sounds = mesecon.node_sound.stone,
 }, true, true)
 
 
@@ -159,9 +180,9 @@ mesecon.register_movestone("mesecons_movestones:sticky_movestone_vertical", {
 minetest.register_craft({
 	output = "mesecons_movestones:movestone 2",
 	recipe = {
-		{"default:stone", "default:stone", "default:stone"},
+		{"mesecons_gamecompat:stone", "mesecons_gamecompat:stone", "mesecons_gamecompat:stone"},
 		{"group:mesecon_conductor_craftable", "group:mesecon_conductor_craftable", "group:mesecon_conductor_craftable"},
-		{"default:stone", "default:stone", "default:stone"},
+		{"mesecons_gamecompat:stone", "mesecons_gamecompat:stone", "mesecons_gamecompat:stone"},
 	}
 })
 
